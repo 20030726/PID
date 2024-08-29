@@ -141,5 +141,3 @@ end
 % sgtitle('Tracking Error Across Multiple Simulations');
 disp(["Success",num2str(success_time)])
 disp(["Fail",num2str(fail_time)])
-
-end

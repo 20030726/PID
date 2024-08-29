@@ -1,130 +1,145 @@
-clc;
-clear;
-close all;
-%% Environmnet Parameters
-g = 9.81; % m/s^2
-%% Slide rail
-x_boundary = [0 120];% m
-y_boundary = [0 50];% m
-theta = 0*pi/180; % rad
-%% Magnetic_train system
-% Parameters
-M = 1000; % kg
-cart_width = 10; % m
-cart_height = 5; % m
+clc
+clear
+close all
 
-% Initial condition
-F_a_0 = 0; % kg/s
-x_0 = 100; % m
-v_I_0 = 0; % m/s
-I_0 = x_0/cos(theta); % m
-% Time span
-Hz = 50; % times/s
+%% Simulation Parameters
+num_simulations = 1000; % Number of simulations to run
+sim_time = 100; % Total simulation time
+Hz = 50;
 delta_t = 1/Hz;
-t = 0:delta_t:100;
+t = 0:delta_t:sim_time;
 
-% Dynamics model
-%dvadt = -g*sin(theta) - 1/M * F_a;
+%% Environment Parameters
+g = 9.81; % m/s^2
+x_boundary = [0 120]; % m [left right]
+y_boundary = [0 50]; % m [bottom top]
+theta = 15*pi/180; % rad
+M = 1000; % kg
 
-%% Drop box system
-% Parameters
-box_width = 5; % m
-box_height = 5; % m
+% Controller Parameters
+Kp = 500;
+Ki = 10;
+Kd = 300;
 
-% Initial condition
-x_desired = x_boundary(1)+(x_boundary(2)-x_boundary(1))*rand;% uniform distrbution
-y_desired_0 = 50;% m
-vy_desired_0 = 0; % m/s
-%% Controller
+%% Initialize storage for results
+errors = zeros(length(t), num_simulations);
+results = strings(1, num_simulations); % To store success/fail results
+success_time = 0;
+fail_time = 0;
 
-% PID Parameters
-Kp = 1000;
-Ki = 30;
-Kd = 30;
+figure;
 
-% Goal
-
-%% Loop
-y_desired = zeros(length(t), 1);
-F_a = zeros(length(t), 1);
-v_I = zeros(length(t), 1);
-I = zeros(length(t), 1);
-e = zeros(length(t), 1);
-y_desired(1) = y_desired_0;
-F_a(1) = F_a_0;
-v_I(1) = v_I_0;
-I(1) = I_0;
-Integral_e = 0;
-
-for i = 2:length(t)
-    % Error
-    e(i-1) = sqrt((x_desired - I(i-1)*cos(theta))^2 + (y_desired(i-1) - I(i-1)*sin(theta))^2);
-    % Break condition
-    if abs(e(i-1)) < 1e-2
-        % Truncate data
-        I = I(1:i-1);
-        F_a = F_a(1:i-1);
-        e = e(1:i-1);
-        t = t(1:i-1);
-        break;
+for sim_num = 1:num_simulations
+    %% Initial Condition for Each Simulation
+    % Box parameters
+    x_box = x_boundary(1) + (x_boundary(2) - x_boundary(1)) * rand; % Random initial position
+    y_box_0 = 50; % m drop height Initial
+    vy_box_0 = 0; % m/s
+    box_width = 5; % m
+    box_height = 5; % m
+    
+    % Magnetic Train system
+    x_train_0 = x_boundary(1) + (x_boundary(2) - x_boundary(1)) * rand; % Random initial position
+    y_train_0 = x_train_0 * tan(theta); % m
+    train_width = 10; % m
+    train_height = 5; % m
+    
+    % Slide rail
+    I_0 = x_train_0 / cos(theta); % m
+    vI_0 = 0; % m/s
+    
+    %% Matrix Setup for this Simulation
+    e = zeros(length(t), 1);
+    I = zeros(length(t), 1);
+    vI = zeros(length(t), 1);
+    x_train = zeros(length(t), 1);
+    y_train = zeros(length(t), 1);
+    y_box = zeros(length(t), 1);
+    Integral_e = zeros(length(t), 1);
+    Differential_e = zeros(length(t), 1);
+    F_a = zeros(length(t), 1);
+    Integral_F_a = zeros(length(t), 1);
+    IIntegral_F_a = zeros(length(t), 1);
+    
+    % Initialize Matrix
+    I(1) = I_0;
+    vI(1) = vI_0;
+    x_train(1) = x_train_0;
+    y_train(1) = y_train_0;
+    y_box(1) = y_box_0;
+    for i = 2:length(t)
+        % Error
+        e(i-1) = x_box - x_train(i-1);
+        
+        %% Controller
+        P_controller = Kp * e(i-1);
+        if i > 2
+            Integral_e(i) = Integral_e(i) + (e(i) + e(i-1)) / 2 * delta_t;
+        end
+        I_controller = Ki * Integral_e(i-1);
+        
+        if i > 2
+            Differential_e(i-1) = (e(i-1) - e(i-2)) / delta_t;
+        end
+        D_controller = Kd * Differential_e(i-1);
+        
+        %% System
+        % box
+        y_box(i-1) = y_box_0 + vy_box_0 * t(i-1) - 1/2 * g * t(i-1)^2;
+        
+        box_left = x_box - box_width / 2;
+        box_right = x_box + box_width / 2;
+        box_bottom = y_box(i-1) - box_height / 2;
+        
+        % train
+        F_a(i-1) = P_controller + I_controller + D_controller;
+        
+        if i > 2
+            Integral_F_a(i-1) = Integral_F_a(i-2) + (F_a(i-1) + F_a(i-2)) / 2 * delta_t;
+            IIntegral_F_a(i-1) = IIntegral_F_a(i-2) + (Integral_F_a(i-1) + Integral_F_a(i-2)) / 2 * delta_t;
+        end
+        
+        vI(i) = vI_0 - g * sin(theta) * t(i) + 1 / M * Integral_F_a(i-1);
+        I(i) = I_0 + vI_0 * t(i) - 0.5 * g * sin(theta) * t(i)^2 + 1 / M * IIntegral_F_a(i-1);
+        x_train(i) = I(i) * cos(theta);
+        y_train(i) = I(i) * sin(theta);
+        
+        train_left = x_train(i-1) - train_width / 2;
+        train_right = x_train(i-1) + train_width / 2;
+        train_top = y_train(i-1) + train_height / 2;
+        
+        % Check collision with train
+        [result, x_train(i)] = Environment(x_train(i), x_boundary, box_bottom, train_top, train_right, box_left, box_right, train_left);
+        y_train(i) = x_train(i) * tan(theta);
+        if result ~= 0
+            break;
+        end
     end
-    % Control input
-    P_controller = Kp * e(i-1);
-    Integral_e = Integral_e + e(i-1) * delta_t;
-    I_controller = Ki * Integral_e;
-    if i > 2
-        D_controller = Kd * (e(i-1) - e(i-2)) / delta_t;
+    
+    % Truncate data at break point
+    e = e(1:i-1);
+    t = t(1:i-1);
+    
+    % Store the error and result for this simulation
+    errors(1:length(e), sim_num) = e;
+    if result == 2
+        results(sim_num) = "Success";
+        success_time = success_time + 1;
     else
-        D_controller = 0;
+        results(sim_num) = "Fail";
+        fail_time = fail_time + 1;
     end
-
-    % System update
     
-    % cart
-    F_a(i-1) = P_controller + I_controller + D_controller;
-
-    Integral_F_a(i) = (F_a(i-1) + F_a(i)) / 2 * delta_t;
-    vI(i) = v_I_0 - g*sin(theta)*t(i) - 1/M * Integral_F_a(i);
-
-    Integral_Integral_F_a(i) = (Integral_F_a(i-1) + Integral_F_a(i)) / 2 * delta_t;
-    I(i) = I_0 + v_I_0 - 1/2*g*sin(theta)*t(i)^2 - 1/M * Integral_Integral_F_a(i);
-    
-    % drop box
-    y_desired(i) = y_desired_0 + vy_desired_0*t(i) -1/2*g*t(i)^2;
-
-   
-    
- %% Plot the cart and the falling box
-    figure(1);
-    clf;
-    hold on;
-    
-    % Plot the slope
-    plot([x_boundary(1), x_boundary(2)], [0, x_boundary(2) * tan(theta)], 'k-', 'LineWidth', 2);
-    
-    % Plot the cart as a rectangle on the slope
-    cart_x = I(i)*cos(theta) - 0.5*cart_width; % Position of the cart along the slope
-    cart_y = I(i)*sin(theta) - 0.5*cart_height; % Vertical position of the cart
-    rectangle('Position', [cart_x, cart_y, cart_width, cart_height], ...
-              'FaceColor', 'b', 'EdgeColor', 'b');%[x, y, width, height]
-    
-    % Plot the falling box as a rectangle
-    rectangle('Position', [x_desired - box_width / 2, y_desired(i) - box_height / 2, box_width, box_height], ...
-              'FaceColor', 'r', 'EdgeColor', 'r');
-    
-    % Plot the force vectors (e.g., gravitational force on the cart)
-    quiver(cart_x + cart_width / 2, cart_y + cart_height / 2, ...
-           0, -M * g / 1000, 'r', 'LineWidth', 2); % Gravitational force (scaled down for visualization)
-    
-    % Set the axis limits and labels
-    axis equal;
-    xlim([x_boundary(1) - 10, x_boundary(2) + 10]); % Add some padding to x-axis
-    ylim(y_boundary); % Add some padding to y-axis
-    xlabel('X Position (m)');
-    ylabel('Y Position (m)');
-    title(sprintf('Time: %.2f s', t(i)));
-    
-    grid on;
-    drawnow;
+    % % Plot the error in a subplot
+    % subplot(ceil(sqrt(num_simulations)), ceil(sqrt(num_simulations)), sim_num);
+    % plot(t, e);
+    % xlabel('Time (s)');
+    % ylabel('Error (m)');
+    % title(['Simulation ', num2str(sim_num), ' - ', results(sim_num)]);
+    % grid on;
+end
+% sgtitle('Tracking Error Across Multiple Simulations');
+disp(["Success",num2str(success_time)])
+disp(["Fail",num2str(fail_time)])
 
 end

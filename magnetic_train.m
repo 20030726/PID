@@ -3,7 +3,7 @@ clear
 close all
 
 %% Simulation Parameters
-num_simulations = 10; % Number of simulations to run
+num_simulations = 1; % Number of simulations to run
 sim_time = 100; % Total simulation time
 Hz = 50;
 delta_t = 1/Hz;
@@ -12,14 +12,14 @@ t = 0:delta_t:sim_time;
 %% Environment Parameters
 g = 9.81; % m/s^2
 x_boundary = [0 120]; % m [left right]
-y_boundary = [0 50]; % m [bottom top]
-theta = 15*pi/180; % rad
-M = 1000; % kg
+y_boundary = [0 120]; % m [bottom top]
+theta = 30*pi/180; % rad
+M = 100; % kg
 
 % Controller Parameters
-Kp = 300;
+Kp = 400;
 Ki = 30;
-Kd = 300;
+Kd = 550;
 
 %% Initialize storage for results
 errors = zeros(length(t), num_simulations);
@@ -39,7 +39,7 @@ for sim_num = 1:num_simulations
     box_height = 5; % m
     
     % Magnetic Train system
-    x_train_0 = x_boundary(1) + (x_boundary(2) - x_boundary(1)) * rand; % Random initial position
+    x_train_0 = 0; % Random initial position
     y_train_0 = x_train_0 * tan(theta); % m
     train_width = 10; % m
     train_height = 5; % m
@@ -58,6 +58,7 @@ for sim_num = 1:num_simulations
     Integral_e = zeros(length(t), 1);
     Differential_e = zeros(length(t), 1);
     F_a = zeros(length(t), 1);
+    F_net = zeros(length(t), 1);
     Integral_F_a = zeros(length(t), 1);
     IIntegral_F_a = zeros(length(t), 1);
     
@@ -92,7 +93,7 @@ for sim_num = 1:num_simulations
         %% Controller
         P_controller = Kp * e(i-1);
         if i > 2
-            Integral_e(i-1) = Integral_e(i-1) + (e(i-1) + e(i-2)) / 2 * delta_t;
+            Integral_e(i-1) = Integral_e(i-2) + (e(i-1) + e(i-2)) / 2 * delta_t;
         end
         I_controller = Ki * Integral_e(i-1);
         
@@ -111,19 +112,18 @@ for sim_num = 1:num_simulations
         
         % train
         F_a(i-1) = P_controller + I_controller + D_controller;
+        F_net(i-1) = F_a(i-1) + M * g * sin(theta);
+
+        vI(i) = vI(i-1) + 1 / M * (F_net(i)+F_net(i-1))/2 * delta_t;
+        I(i) = I(i-1) + (vI(i)+vI(i-1))/2 * delta_t;
+
+        x_train(i) = I(i) * cos(theta);
+        y_train(i) = I(i) * sin(theta);
+        x_train = min(max(x_train, x_boundary(1)), x_boundary(2));
         
-        if i > 2
-            Integral_F_a(i-1) = Integral_F_a(i-2) + (F_a(i-1) + F_a(i-2)) / 2 * delta_t;
-            IIntegral_F_a(i-1) = IIntegral_F_a(i-2) + (Integral_F_a(i-1) + Integral_F_a(i-2)) / 2 * delta_t;
-            vI(i-1) = vI_0 - g * sin(theta) * t(i-1) + 1 / M * Integral_F_a(i-2);
-            I(i-1) = I_0 + vI_0 * t(i-1) - 0.5 * g * sin(theta) * t(i-1)^2 + 1 / M * IIntegral_F_a(i-2);
-        end
-        x_train(i-1) = I(i-1) * cos(theta);
-        y_train(i-1) = I(i-1) * sin(theta);
-        
-        train_left = x_train(i-1) - train_width / 2;
-        train_right = x_train(i-1) + train_width / 2;
-        train_top = y_train(i-1) + train_height / 2;
+        train_left = x_train(i) - train_width / 2;
+        train_right = x_train(i) + train_width / 2;
+        train_top = y_train(i) + train_height / 2;
         
         % Check collision with train
         [result, x_train(i)] = Environment(x_train(i), x_boundary, box_bottom, train_top, train_right, box_left, box_right, train_left);
@@ -132,15 +132,15 @@ for sim_num = 1:num_simulations
             break;
         end
         % Update Plot
-        set(train_rect, 'Position', [train_left, y_train(i-1) - train_height/2, train_width, train_height]);
+        set(train_rect, 'Position', [train_left, y_train(i) - train_height/2, train_width, train_height]);
         set(box_rect, 'Position', [box_left, box_bottom, box_width, box_height]);
-        title(sprintf('Time: %.2f s', t(i-1)));
+        title(sprintf('Time: %.2f s', t(i)));
         drawnow;
     end
     
     % Truncate data at break point
-    e = e(1:i-1);
-    t = t(1:i-1);
+    e = e(1:i);
+    t = t(1:i);
     
     % Store the error and result for this simulation
     errors(1:length(e), sim_num) = e;
@@ -153,6 +153,7 @@ for sim_num = 1:num_simulations
     end
     
     % Plot the error in a subplot
+    figure;
     subplot(ceil(sqrt(num_simulations)), ceil(sqrt(num_simulations)), sim_num);
     plot(t, e);
     xlabel('Time (s)');

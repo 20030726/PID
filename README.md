@@ -26,7 +26,8 @@ Each script uses MATLAB to simulate the system dynamics and the effectiveness of
 
 - MATLAB R2020b or later
 - Control System Toolbox (optional but recommended for more advanced simulations)
-- [Environment Setup](Environment_setup.jpeg)
+-![Environment Setup](Environment_setup.jpeg)
+
 
 ## Usage
 

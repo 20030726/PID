@@ -25,10 +25,7 @@ Each section outlines the current state of the simulations and the issues that s
 - **Objective**: To maintain the stable levitation of a magnetic train using a PID controller.
 
 ### Unresolved Issues
-- **Nonlinearities in Magnetic Force**: The simulation currently does not fully account for the nonlinear relationship between the magnetic force and the distance from the magnets. This leads to instability at certain positions.
-- **Tuning PID Parameters**: The PID parameters require further tuning to achieve smoother control without oscillations.
-- **Sensor Noise**: The impact of sensor noise on the stability of the system has not yet been fully analyzed.
-
+- **Multiple Simulations**: The break condition did not initialize for each simulation individually. Instead, it followed the `train_top` value from the last simulation to determine if `box_bottom <= train_top`.
 ## Water Tank
 
 ### Description

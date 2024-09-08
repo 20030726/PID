@@ -39,8 +39,7 @@ Each section outlines the current state of the simulations and the issues that s
 
 ## Requirements
 
-- MATLAB R2020b or later
-- Control System Toolbox (optional but recommended for more advanced simulations)
+- MATLAB R2023b
 - ![Environment Setup](Environment_setup.jpeg)
 
 ## Usage

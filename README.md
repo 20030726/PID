@@ -40,5 +40,3 @@ Each section outlines the current state of the simulations and the issues that s
 ## Requirements
 
 - MATLAB R2023b
-- ![Environment Setup](Environment_setup.jpeg)
-

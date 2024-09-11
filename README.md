@@ -42,8 +42,3 @@ Each section outlines the current state of the simulations and the issues that s
 - MATLAB R2023b
 - ![Environment Setup](Environment_setup.jpeg)
 
-## Usage
-
-1. Clone this repository to your local machine:
-   ```bash
-   git clone https://github.com/20030726/PID.git
